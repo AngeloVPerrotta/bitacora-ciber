@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg:       #1d2021;
+    --bg-soft:  #282828;
+    --fg:       #d4be98;
+    --fg-dim:   #7c6f64;
+    --accent:   #a9b665;
+    --cyan:     #7daea3;
+    --yellow:   #d8a657;
+    --red:      #ea6962;
+    --gray:     #928374;
+    --bar-bg:   #3c3836;
+    --bar-fill: #a9b665;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 12px;
+    overflow-y: auto;
+  }
+
+  .prompt {
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .prompt .user { color: var(--cyan); }
+  .prompt .path { color: var(--yellow); }
+  .prompt .cmd  { color: var(--fg); }
+
+  .separator {
+    color: var(--fg-dim);
+    margin: 10px 0;
+    opacity: 0.5;
+  }
+
+  .stage {
+    margin-bottom: 10px;
+    padding: 6px 0;
+  }
+
+  .stage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .stage-name {
+    color: var(--fg);
+    font-weight: 400;
+  }
+
+  .stage.active .stage-name {
+    color: var(--cyan);
+    font-weight: 700;
+  }
+
+  .stage.done .stage-name {
+    color: var(--accent);
+  }
+
+  .stage-status {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .status-pendiente { color: var(--gray); }
+  .status-en_curso  { color: var(--cyan); }
+  .status-hecho     { color: var(--accent); }
+
+  .bar-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+  }
+
+  .bar {
+    flex: 1;
+    height: 6px;
+    background: var(--bar-bg);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 1px;
+    transition: width 0.3s ease;
+  }
+
+  .bar-fill.pendiente { background: var(--gray); }
+  .bar-fill.en_curso  { background: var(--cyan); }
+  .bar-fill.hecho     { background: var(--accent); }
+
+  .bar-pct {
+    color: var(--fg-dim);
+    font-size: 10px;
+    min-width: 32px;
+    text-align: right;
+  }
+
+  .stage-dates {
+    color: var(--fg-dim);
+    font-size: 10px;
+    margin-top: 2px;
+  }
+
+  .arrival {
+    margin-top: 16px;
+    padding: 8px;
+    border: 1px solid var(--fg-dim);
+    border-radius: 2px;
+    text-align: center;
+  }
+
+  .arrival-label {
+    color: var(--fg-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .arrival-date {
+    color: var(--yellow);
+    font-size: 14px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+
+  .sync-bar {
+    margin-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .sync-ts {
+    color: var(--fg-dim);
+    font-size: 10px;
+  }
+
+  .btn-sync {
+    background: var(--bg-soft);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .btn-sync:hover {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  .btn-sync:disabled {
+    opacity: 0.4;
+    cursor: wait;
+  }
+
+  .loading {
+    color: var(--fg-dim);
+    text-align: center;
+    padding: 40px 0;
+  }
+</style>
+</head>
+<body>
+
+<div class="prompt">
+  <span class="user">angelo</span>@<span class="path">ciber:~/ruta</span>$ <span class="cmd">status</span>
+</div>
+
+<div id="content" class="loading">cargando...</div>
+
+<script>
+  function render(data) {
+    var etapas = data.etapas || [];
+    var html = '';
+
+    // etapas
+    etapas.forEach(function(e) {
+      var isActive = e.estado === 'en_curso';
+      var isDone   = e.estado === 'hecho';
+      var cls = isActive ? 'stage active' : (isDone ? 'stage done' : 'stage');
+      var pct = Math.round((e.progreso || 0) * 100);
+      var ini = formatDate(e.inicio_proyectado);
+      var fin = formatDate(e.fin_proyectado);
+
+      html += '<div class="' + cls + '">';
+      html += '  <div class="stage-header">';
+      html += '    <span class="stage-name">' + esc(e.nombre) + '</span>';
+      html += '    <span class="stage-status status-' + e.estado + '">' + e.estado.replace('_', ' ') + '</span>';
+      html += '  </div>';
+      html += '  <div class="bar-container">';
+      html += '    <div class="bar"><div class="bar-fill ' + e.estado + '" style="width:' + pct + '%"></div></div>';
+      html += '    <span class="bar-pct">' + pct + '%</span>';
+      html += '  </div>';
+      html += '  <div class="stage-dates">' + ini + ' &rarr; ' + fin + '</div>';
+      html += '</div>';
+    });
+
+    // fecha de llegada = fin de la ultima etapa
+    if (etapas.length) {
+      var last = etapas[etapas.length - 1];
+      html += '<div class="separator">---</div>';
+      html += '<div class="arrival">';
+      html += '  <div class="arrival-label">fecha de llegada proyectada</div>';
+      html += '  <div class="arrival-date">' + formatDate(last.fin_proyectado) + '</div>';
+      html += '</div>';
+    }
+
+    // sync bar
+    html += '<div class="sync-bar">';
+    html += '  <span class="sync-ts">sync: ' + (data.ultimaSync || '---') + '</span>';
+    html += '  <button class="btn-sync" id="btnSync" onclick="doSync()">&gt; sincronizar</button>';
+    html += '</div>';
+
+    document.getElementById('content').innerHTML = html;
+  }
+
+  function formatDate(d) {
+    if (!d) return '---';
+    if (typeof d === 'string') return d.substring(0, 10);
+    // Date object serialized from server comes as string
+    var dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d).substring(0, 10);
+    var y = dt.getFullYear();
+    var m = ('0' + (dt.getMonth() + 1)).slice(-2);
+    var day = ('0' + dt.getDate()).slice(-2);
+    return y + '-' + m + '-' + day;
+  }
+
+  function esc(s) {
+    var el = document.createElement('span');
+    el.textContent = s;
+    return el.innerHTML;
+  }
+
+  function doSync() {
+    var btn = document.getElementById('btnSync');
+    if (btn) { btn.disabled = true; btn.textContent = 'syncing...'; }
+    google.script.run
+      .withSuccessHandler(function() { loadData(); })
+      .withFailureHandler(function(err) {
+        if (btn) { btn.disabled = false; btn.textContent = '> sincronizar'; }
+        alert('Error: ' + err.message);
+      })
+      .sincronizarAhora();
+  }
+
+  function loadData() {
+    google.script.run
+      .withSuccessHandler(render)
+      .withFailureHandler(function(err) {
+        document.getElementById('content').innerHTML =
+          '<div style="color:var(--red)">error: ' + esc(err.message) + '</div>';
+      })
+      .getDashboardData();
+  }
+
+  // initial load
+  loadData();
+</script>
+</body>
+</html>

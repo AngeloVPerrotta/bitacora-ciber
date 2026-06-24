@@ -411,6 +411,27 @@ function updateEtapaEventId(etapaId, eventId) {
   updateEtapaField_(etapaId, 'event_id', eventId);
 }
 
+// Escribe el tilde 'hecho' (col 3) de una tarea por numero de fila. `row` es el
+// _row que getTasks() expone (y que la API devuelve como id de tarea). Si se
+// pasa etapaIdEsperado, valida que la fila pertenezca a esa etapa antes de
+// escribir (chequeo de seguridad contra ids desfasados). Devuelve true si escribio.
+function setTaskHecho_(row, value, etapaIdEsperado) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_TASKS);
+  if (!sheet) return false;
+
+  var lastRow = sheet.getLastRow();
+  if (row < 2 || row > lastRow) return false; // fila 1 = header
+
+  if (etapaIdEsperado) {
+    var rowEtapa = sheet.getRange(row, 1).getValue();
+    if (rowEtapa !== etapaIdEsperado) return false;
+  }
+
+  sheet.getRange(row, 3).setValue(value === true);
+  return true;
+}
+
 // ======================== RECALC PROGRESS ==================================
 
 function recalcProgress() {

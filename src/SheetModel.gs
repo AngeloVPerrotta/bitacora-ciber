@@ -101,6 +101,87 @@ function ensureSheets() {
     sy.getRange(2, 1, 1, 2).setValues([['ultima_sync', '']]);
     sy.hideSheet();
   }
+
+  formatSheets();
+}
+
+// ======================== FORMAT SHEETS ====================================
+
+function formatSheets() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // --- Tasks ---
+  var tasks = ss.getSheetByName(SHEET_TASKS);
+  if (tasks) {
+    var lastRowT = tasks.getLastRow();
+    // header: bold + frozen
+    tasks.getRange(1, 1, 1, 3).setFontWeight('bold');
+    tasks.setFrozenRows(1);
+
+    if (lastRowT > 1) {
+      // checkboxes en columna "hecho" (col 3) para todas las filas de datos
+      tasks.getRange(2, 3, lastRowT - 1, 1).insertCheckboxes();
+    }
+
+    tasks.autoResizeColumns(1, 3);
+
+    // banding: limpiar bandings previos, poner uno nuevo
+    var bandings = tasks.getBandings();
+    for (var b = 0; b < bandings.length; b++) bandings[b].remove();
+    if (lastRowT > 1) {
+      tasks.getRange(1, 1, lastRowT, 3)
+        .applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY);
+    }
+  }
+
+  // --- Etapas ---
+  var etapas = ss.getSheetByName(SHEET_ETAPAS);
+  if (etapas) {
+    var headers = etapas.getRange(1, 1, 1, etapas.getLastColumn()).getValues()[0];
+    var lastRowE = etapas.getLastRow();
+
+    // header: bold + frozen
+    etapas.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+    etapas.setFrozenRows(1);
+
+    if (lastRowE > 1) {
+      // dropdown en "estado"
+      var colEstado = headers.indexOf('estado') + 1;
+      if (colEstado > 0) {
+        var rule = SpreadsheetApp.newDataValidation()
+          .requireValueInList(['pendiente', 'en_curso', 'hecho'], true)
+          .setAllowInvalid(false)
+          .build();
+        etapas.getRange(2, colEstado, lastRowE - 1, 1).setDataValidation(rule);
+      }
+
+      // "progreso" como porcentaje
+      var colProgreso = headers.indexOf('progreso') + 1;
+      if (colProgreso > 0) {
+        etapas.getRange(2, colProgreso, lastRowE - 1, 1).setNumberFormat('0%');
+      }
+
+      // "fecha_fin_real" como fecha
+      var colFecha = headers.indexOf('fecha_fin_real') + 1;
+      if (colFecha > 0) {
+        etapas.getRange(2, colFecha, lastRowE - 1, 1).setNumberFormat('yyyy-mm-dd');
+      }
+    }
+
+    // ocultar columna "event_id"
+    var colEventId = headers.indexOf('event_id') + 1;
+    if (colEventId > 0) {
+      etapas.hideColumns(colEventId);
+    }
+
+    etapas.autoResizeColumns(1, headers.length);
+  }
+
+  // --- _sync: oculta ---
+  var sync = ss.getSheetByName(SHEET_SYNC);
+  if (sync && !sync.isSheetHidden()) {
+    sync.hideSheet();
+  }
 }
 
 // ======================== READERS ==========================================

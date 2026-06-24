@@ -6,9 +6,11 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Ciber')
     .addItem('Sincronizar ahora', 'sincronizarAhora')
+    .addItem('Resync limpio', 'sincronizarAhora')
     .addItem('Abrir panel', 'abrirPanel')
     .addSeparator()
     .addItem('Instalar trigger diario', 'instalarTriggerDiario')
+    .addItem('Aplicar formato', 'formatSheets')
     .addItem('Borrar todas las bandas', 'borrarTodasLasBandas')
     .addToUi();
 }

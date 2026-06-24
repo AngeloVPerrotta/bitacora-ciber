@@ -114,16 +114,14 @@ function crearSesiones_(cal, proyeccion, settings) {
   }
   if (!activa) return;
 
-  // cadencia: horas_semana / horas_por_sesion = sesiones por semana
+  // cadencia: misma formula que la proyeccion (Scheduler.cadenciaSemanal_),
+  // para que estas sesiones caigan dentro de la banda de la etapa activa.
   var horario = settings.horario || '13:00-14:30';
   var horasSesion = calcHorasSesion_(horario);
-  var sesionesXSemana = Math.max(1, Math.round(activa.horas_semana / horasSesion));
-
-  // dias de sesion (tomar los primeros N segun cadencia)
   var diasDisponibles = (settings.dias_sesion || 'TU,TH').split(',').map(function(d) {
     return DAY_MAP[d.trim().toUpperCase()];
   });
-  var diasActivos = diasDisponibles.slice(0, sesionesXSemana);
+  var diasActivos = cadenciaSemanal_(activa.horas_semana, horasSesion, diasDisponibles).diasActivos;
 
   // parsear horario
   var partes = horario.split('-');

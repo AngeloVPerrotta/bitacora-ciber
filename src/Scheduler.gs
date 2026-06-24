@@ -34,6 +34,8 @@ function proyectar() {
       progreso: etapa.progreso || 0,
       horas_estimadas: etapa.horas_estimadas,
       horas_semana:    etapa.horas_semana,
+      sesiones_semana:   0,  // cadencia derivada de horas_semana (se llena abajo)
+      semanas_necesarias: 0,
       event_id: etapa.event_id || '',
       _row:     etapa._row
     };
@@ -56,19 +58,32 @@ function proyectar() {
         : hoy;
       entry.color = 'GREEN';
     } else {
+      // ---- etapa SECUENCIAL: la cadencia sale de horas_semana ----
       var horasRestantes = etapa.horas_estimadas * (1 - (etapa.progreso || 0));
-      var sesionesNecesarias = Math.ceil(horasRestantes / horasSesion);
-      if (sesionesNecesarias < 1) sesionesNecesarias = 1;
+      var horasSemana = Number(etapa.horas_semana) || horasSesion;
 
-      entry.inicio_proyectado = new Date(cursor);
-      var fin = avanzarSesiones_(cursor, sesionesNecesarias, diasSesion);
+      // cadencia (sesiones/semana y en que dias caen) derivada de horas_semana,
+      // misma formula que usa CalendarSync para las sesiones concretas: asi la
+      // banda y las sesiones SIEMPRE coinciden. Ej: 1.5h/sem ÷ 1.5h/sesion = 1
+      // sesion/sem; 3h/sem = 2 sesiones/sem. No se hardcodea.
+      var cad = cadenciaSemanal_(horasSemana, horasSesion, diasSesion);
+
+      // semanas necesarias a ese ritmo semanal
+      var semanasNecesarias = Math.max(1, Math.ceil(horasRestantes / horasSemana));
+
+      // inicio = primer dia de sesion (activo) en/desde el cursor
+      var inicio = primerDiaDeSesion_(cursor, cad.diasActivos);
+      // fin = inicio + semanas_necesarias semanas, cayendo en un dia de sesion
+      var fin = primerDiaDeSesion_(addDays_(inicio, semanasNecesarias * 7), cad.diasActivos);
+
+      entry.inicio_proyectado = inicio;
       entry.fin_proyectado = fin;
+      entry.sesiones_semana = cad.sesionesXSemana;
+      entry.semanas_necesarias = semanasNecesarias;
       entry.color = etapa.estado === 'en_curso' ? 'CYAN' : 'GRAY';
 
-      // mover cursor al dia siguiente a fin para la proxima etapa
-      cursor = addDays_(fin, 1);
-      // saltar holiday zone (24/dic — 1/ene)
-      cursor = skipHolidayZone_(cursor);
+      // cursor para la proxima etapa: dia siguiente al fin, saltando holiday zone
+      cursor = skipHolidayZone_(addDays_(fin, 1));
     }
 
     resultado.push(entry);
@@ -105,18 +120,30 @@ function addDays_(date, n) {
   return d;
 }
 
-function avanzarSesiones_(desde, sesiones, diasSesion) {
+// Cadencia semanal derivada de horas_semana (NO se hardcodea): cuantas sesiones
+// por semana y en que dias de sesion caen. La usan tanto Scheduler (proyeccion
+// + bandas) como CalendarSync (sesiones concretas), de modo que la ventana de la
+// banda y las sesiones del calendario SIEMPRE coinciden.
+//   horas_semana 1.5 ÷ horas_sesion 1.5 = 1 sesion/sem  -> primer dia de sesion
+//   horas_semana 3   ÷ horas_sesion 1.5 = 2 sesiones/sem -> los dos dias
+function cadenciaSemanal_(horasSemana, horasSesion, diasSesion) {
+  var sesionesXSemana = Math.max(1, Math.round(Number(horasSemana) / horasSesion));
+  return {
+    sesionesXSemana: sesionesXSemana,
+    diasActivos: diasSesion.slice(0, sesionesXSemana)
+  };
+}
+
+// Primer dia >= desde que es dia de sesion (de la lista dada) y no cae en la
+// holiday zone (24/dic — 1/ene).
+function primerDiaDeSesion_(desde, dias) {
   var d = new Date(desde);
-  var count = 0;
-  // limite de seguridad: max 2000 dias (~5 anios)
-  for (var safety = 0; safety < 2000 && count < sesiones; safety++) {
-    if (esDiaDeSesion_(d, diasSesion) && !enHolidayZone_(d)) {
-      count++;
-      if (count >= sesiones) return new Date(d);
-    }
+  // limite de seguridad: ~5 anios
+  for (var safety = 0; safety < 2000; safety++) {
+    if (esDiaDeSesion_(d, dias) && !enHolidayZone_(d)) return d;
     d = addDays_(d, 1);
   }
-  return new Date(d);
+  return d;
 }
 
 function esDiaDeSesion_(date, diasSesion) {
@@ -143,12 +170,18 @@ function skipHolidayZone_(date) {
 function testProyeccion() {
   ensureSheets();
   recalcProgress();
+  var tz = 'America/Argentina/Buenos_Aires';
   var p = proyectar();
   p.forEach(function(e) {
-    var ini = Utilities.formatDate(e.inicio_proyectado, 'America/Argentina/Buenos_Aires', 'yyyy-MM-dd');
-    var fin = Utilities.formatDate(e.fin_proyectado, 'America/Argentina/Buenos_Aires', 'yyyy-MM-dd');
-    Logger.log('%s | %s | %s → %s | %s | %s%%',
-      e.id, e.nombre, ini, fin, e.estado,
+    var ini = Utilities.formatDate(e.inicio_proyectado, tz, 'yyyy-MM-dd');
+    var fin = Utilities.formatDate(e.fin_proyectado, tz, 'yyyy-MM-dd');
+    var cad = e.paralela
+      ? 'paralela'
+      : (e.estado === 'hecho'
+          ? 'hecho'
+          : e.semanas_necesarias + ' sem @ ' + e.sesiones_semana + ' ses/sem');
+    Logger.log('%s | %s | %s → %s | %s | %s | %s%%',
+      e.id, e.nombre, ini, fin, cad, e.estado,
       Math.round(e.progreso * 100));
   });
 }

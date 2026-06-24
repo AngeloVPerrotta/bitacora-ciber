@@ -38,7 +38,17 @@ function proyectar() {
       _row:     etapa._row
     };
 
-    if (etapa.estado === 'hecho') {
+    if (esParalela_(etapa)) {
+      // etapa PARALELA (horas_semana = 0): figura en el panel pero NO consume
+      // cronograma ni mueve el cursor. Ej: Etapa 4 — Notetaking (corre junto
+      // a las demas, no es una banda agendada). El cursor queda intacto.
+      entry.inicio_proyectado = new Date(cursor);
+      entry.fin_proyectado = new Date(cursor);
+      entry.color = etapa.estado === 'hecho'
+        ? 'GREEN'
+        : (etapa.estado === 'en_curso' ? 'CYAN' : 'GRAY');
+      entry.paralela = true;
+    } else if (etapa.estado === 'hecho') {
       // etapa ya completada: anclar al pasado
       entry.inicio_proyectado = fechaInicio; // placeholder — no importa mucho
       entry.fin_proyectado = etapa.fecha_fin_real
@@ -68,6 +78,11 @@ function proyectar() {
 }
 
 // ======================== HELPERS ==========================================
+
+function esParalela_(etapa) {
+  // Una etapa con horas_semana = 0 corre en paralelo: no ocupa cronograma.
+  return Number(etapa.horas_semana) === 0;
+}
 
 function parseDateString_(str) {
   if (str instanceof Date) return str;

@@ -69,6 +69,12 @@ function limpiarEventosCiber_(cal, settings) {
 
 function crearBandas_(cal, proyeccion) {
   proyeccion.forEach(function(etapa) {
+    // etapas paralelas (horas_semana = 0) no llevan banda en el calendario
+    if (etapa.paralela) {
+      updateEtapaEventId(etapa.id, '');
+      return;
+    }
+
     var title = 'Ciber \u00b7 ' + etapa.nombre;
     var inicio = etapa.inicio_proyectado;
     var fin = addDays_(etapa.fin_proyectado, 1); // fin exclusivo
